@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find Color</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <button class="back-button" type="button" aria-label="Back to color finder">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 19a1 1 0 0 1-.7-.29l-6-6a1 1 0 0 1 0-1.42l6-6a1 1 0 1 1 1.4 1.42L10.91 12l5.29 5.29A1 1 0 0 1 15.5 19z"/></svg>
+  </button>
+  <main class="app-shell">
+    <section class="glass-card" aria-labelledby="app-title">
+      <header class="card-header">
+        <p id="app-title" class="card-title" aria-hidden="false">Find color</p>
+      </header>
+      <form class="color-form" novalidate>
+        <div class="stops-title-row">
+          <div class="stops-title" id="stops-title">Color stops</div>
+          <button class="add-stop-button" type="button" aria-label="Add color stop">
+            <span aria-hidden="true">+ Add color</span>
+          </button>
+        </div>
+        <div class="stops-container" role="group" aria-labelledby="stops-title"></div>
+        <div class="gradient-preview" aria-hidden="true"></div>
+        <p id="input-help" class="input-help" role="alert" aria-live="assertive"></p>
+        <button class="apply-button" type="submit" aria-label="Apply colors">
+          <span>Search / Apply</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a1 1 0 0 1 1-1h11.59l-3.3-3.29a1 1 0 0 1 1.42-1.42l5 5a1 1 0 0 1 0 1.42l-5 5a1 1 0 1 1-1.42-1.42L16.59 13H5a1 1 0 0 1-1-1z"/></svg>
+        </button>
+      </form>
+      <div class="results" aria-live="polite"></div>
+    </section>
+  </main>
+  <div class="background-gradient" aria-hidden="true"></div>
+  <template id="stop-row-template">
+    <div class="stop-row" draggable="false">
+      <label class="stop-label"></label>
+      <div class="stop-input-group">
+        <input type="text" class="stop-input" inputmode="text" autocomplete="off" placeholder="e.g. #A3E4D7" spellcheck="false" maxlength="7" />
+        <button class="stop-picker" type="button" aria-label="Pick color">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 0 1 5.47 11.47l3.53 3.53a1 1 0 0 1-1.42 1.42l-3.53-3.53A7 7 0 1 1 11 4zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>
+        </button>
+        <button class="stop-remove" type="button" aria-label="Remove color stop">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12a1 1 0 0 1 1-1h10a1 1 0 0 1 0 2H7a1 1 0 0 1-1-1z"/></svg>
+        </button>
+      </div>
+    </div>
+  </template>
+  <script src="script.js" defer></script>
+</body>
+</html>
