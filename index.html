@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find Color</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <button class="back-button" type="button" aria-label="Back to color finder">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 19a1 1 0 0 1-.7-.29l-6-6a1 1 0 0 1 0-1.42l6-6a1 1 0 1 1 1.4 1.42L10.91 12l5.29 5.29A1 1 0 0 1 15.5 19z"/></svg>
+  </button>
+  <main class="app-shell">
+    <section class="glass-card" aria-labelledby="app-title">
+      <header class="card-header">
+        <p id="app-title" class="card-title" aria-hidden="false">Find color</p>
+      </header>
+      <form class="color-form" novalidate>
+        <label for="hex-input" class="sr-only">Hex color code</label>
+        <div class="input-group">
+          <input id="hex-input" name="hex" type="text" inputmode="text" autocomplete="off" placeholder="e.g. #A3E4D7" aria-describedby="input-help" spellcheck="false" maxlength="7" />
+          <button class="go-button" type="submit" aria-label="Apply color">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a1 1 0 0 1 1-1h11.59l-3.3-3.29a1 1 0 0 1 1.42-1.42l5 5a1 1 0 0 1 0 1.42l-5 5a1 1 0 1 1-1.42-1.42L16.59 13H5a1 1 0 0 1-1-1z"/></svg>
+          </button>
+          <button class="picker-button" type="button" aria-label="Open color picker">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 0 1 5.47 11.47l3.53 3.53a1 1 0 0 1-1.42 1.42l-3.53-3.53A7 7 0 1 1 11 4zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>
+          </button>
+        </div>
+        <p id="input-help" class="input-help" role="alert" aria-live="assertive"></p>
+      </form>
+      <input type="color" class="fallback-color" aria-hidden="true" tabindex="-1" />
+      <div class="results" aria-live="polite"></div>
+    </section>
+  </main>
+  <div class="background-gradient" aria-hidden="true"></div>
+  <script src="script.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  color-scheme: light;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --card-max-width: 520px;
+  --card-padding-desktop: 42px;
+  --card-padding-mobile: 28px;
+  --surface-glass: rgba(255, 255, 255, 0.15);
+  --surface-border: rgba(255, 255, 255, 0.4);
+  --shadow-lg: 0 30px 60px rgba(15, 20, 40, 0.25);
+  --transition-duration: 200ms;
+  --transition-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --card-fade-duration: 420ms;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --card-max-width: 92vw;
+    --card-padding-desktop: var(--card-padding-mobile);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-duration: 0ms;
+    --card-fade-duration: 0ms;
+  }
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #10121a;
+  position: relative;
+  overflow: hidden;
+  transition: background-color var(--transition-duration) var(--transition-ease);
+}
+
+body.fill-mode {
+  background: var(--fill-color, #000);
+}
+
+body.fill-mode .app-shell,
+body.fill-mode .background-gradient {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-duration) var(--transition-ease);
+}
+
+body.fill-mode .back-button {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.background-gradient {
+  position: fixed;
+  inset: -20vh;
+  background: conic-gradient(from 45deg, rgba(255, 153, 102, 0.7), rgba(255, 94, 247, 0.6), rgba(125, 213, 255, 0.7), rgba(147, 255, 200, 0.65), rgba(255, 214, 165, 0.6), rgba(255, 153, 102, 0.7));
+  filter: blur(120px) saturate(120%);
+  z-index: -2;
+  transform: scale(1.2);
+}
+
+.app-shell {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+  transition: opacity var(--transition-duration) var(--transition-ease), transform var(--transition-duration) var(--transition-ease);
+  animation: cardFadeIn var(--card-fade-duration) var(--transition-ease) both;
+}
+
+.glass-card {
+  position: relative;
+  width: min(var(--card-max-width), 100%);
+  padding: var(--card-padding-desktop);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.14));
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-size: 0.9rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(17, 24, 39, 0.75);
+  font-weight: 600;
+}
+
+.color-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+#hex-input {
+  width: 100%;
+  padding: 18px 120px 18px 22px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 500;
+  transition: box-shadow var(--transition-duration) var(--transition-ease), border var(--transition-duration) var(--transition-ease), transform var(--transition-duration) var(--transition-ease);
+  outline: none;
+}
+
+#hex-input::placeholder {
+  color: rgba(15, 23, 42, 0.45);
+}
+
+#hex-input:focus {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 4px rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.85);
+}
+
+.go-button,
+.picker-button {
+  position: absolute;
+  right: 68px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  width: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(16px);
+  cursor: pointer;
+  transition: transform var(--transition-duration) var(--transition-ease), box-shadow var(--transition-duration) var(--transition-ease), border var(--transition-duration) var(--transition-ease);
+  fill: rgba(15, 23, 42, 0.78);
+}
+
+.go-button svg,
+.picker-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.go-button {
+  right: 120px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.go-button:hover,
+.go-button:focus-visible,
+.picker-button:hover,
+.picker-button:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.15);
+  border-color: rgba(255, 255, 255, 0.85);
+}
+
+.picker-button {
+  right: 24px;
+}
+
+.input-help {
+  font-size: 0.82rem;
+  color: rgba(220, 38, 38, 0.85);
+  min-height: 1.2rem;
+}
+
+.fallback-color {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.results {
+  display: grid;
+  gap: 18px;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity var(--transition-duration) var(--transition-ease), transform var(--transition-duration) var(--transition-ease);
+}
+
+.results.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.result-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.result-card {
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 16px 18px;
+  backdrop-filter: blur(18px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result-card .label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.68rem;
+  color: rgba(15, 23, 42, 0.55);
+  font-weight: 600;
+}
+
+.result-card .value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.swatch {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+}
+
+.contrast-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.contrast-sample {
+  flex: 1 1 140px;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.contrast-sample .sample-text {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.back-button {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(15, 23, 42, 0.2);
+  backdrop-filter: blur(16px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  fill: currentColor;
+  color: #0f172a;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-12px);
+  transition: opacity var(--transition-duration) var(--transition-ease), transform var(--transition-duration) var(--transition-ease), color var(--transition-duration) var(--transition-ease), background var(--transition-duration) var(--transition-ease);
+  z-index: 10;
+}
+
+.back-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.back-button:hover,
+.back-button:focus-visible {
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.32);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.shake {
+  animation: shake 320ms ease;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-6px);
+  }
+  40%, 80% {
+    transform: translateX(6px);
+  }
+}
+
+body.fill-mode .back-button {
+  background: rgba(15, 23, 42, 0.2);
+}
+
+@media (max-width: 480px) {
+  #hex-input {
+    padding: 16px 110px 16px 18px;
+    font-size: 1rem;
+  }
+  .go-button {
+    right: 106px;
+  }
+  .picker-button {
+    right: 18px;
+  }
+  .glass-card {
+    gap: 24px;
+  }
+}
+.color-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.result-card.contrast-card {
+  grid-column: 1 / -1;
+}
+
+.badge[data-status="pass"] {
+  background: rgba(34, 197, 94, 0.18);
+  color: #047857;
+}
+
+.badge[data-status="fail"] {
+  background: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
+}
+
+.badge[data-status="neutral"] {
+  background: rgba(148, 163, 184, 0.28);
+  color: #334155;
+}
+.badge-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
