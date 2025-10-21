@@ -149,20 +149,170 @@ const namedColors = [
   { name: 'Grey', hex: '#808080' }
 ];
 
+const MAX_STOPS = 8;
+const MIN_STOPS = 1;
+
 const form = document.querySelector('.color-form');
-const hexInput = document.getElementById('hex-input');
-const pickerButton = document.querySelector('.picker-button');
-const goButton = document.querySelector('.go-button');
+const stopsContainer = document.querySelector('.stops-container');
+const addStopButton = document.querySelector('.add-stop-button');
+const previewBar = document.querySelector('.gradient-preview');
 const resultsContainer = document.querySelector('.results');
-const fallbackColorInput = document.querySelector('.fallback-color');
 const helpText = document.getElementById('input-help');
 const backButton = document.querySelector('.back-button');
-const body = document.body;
+const stopTemplate = document.getElementById('stop-row-template');
 
 backButton.tabIndex = -1;
 backButton.setAttribute('aria-hidden', 'true');
 
-let currentColorHex = '#FFFFFF';
+let stopIdCounter = 0;
+const stopRows = [];
+let currentFillStops = [];
+let currentFillType = 'none';
+
+function createStopRow(initialHex = '') {
+  const fragment = stopTemplate.content.firstElementChild.cloneNode(true);
+  const label = fragment.querySelector('.stop-label');
+  const input = fragment.querySelector('.stop-input');
+  const pickerButton = fragment.querySelector('.stop-picker');
+  const removeButton = fragment.querySelector('.stop-remove');
+  const fallbackInput = document.createElement('input');
+  const id = `stop-${++stopIdCounter}`;
+
+  fallbackInput.type = 'color';
+  fallbackInput.className = 'stop-fallback';
+  fallbackInput.tabIndex = -1;
+  fallbackInput.setAttribute('aria-hidden', 'true');
+  Object.assign(fallbackInput.style, {
+    position: 'absolute',
+    opacity: '0',
+    pointerEvents: 'none',
+    width: '1px',
+    height: '1px'
+  });
+
+  input.id = id;
+  input.setAttribute('aria-describedby', 'input-help');
+  label.setAttribute('for', id);
+
+  const inputGroup = fragment.querySelector('.stop-input-group');
+  inputGroup.appendChild(fallbackInput);
+
+  const row = { element: fragment, label, input, pickerButton, removeButton, fallbackInput };
+
+  if (initialHex) {
+    const normalized = normalizeHex(initialHex);
+    if (normalized) {
+      input.value = normalized;
+    } else {
+      input.value = initialHex;
+    }
+  }
+
+  input.addEventListener('input', () => {
+    input.classList.remove('invalid');
+    clearHelp();
+    renderGradientPreview();
+    updateResultsPanel();
+  });
+
+  input.addEventListener('blur', () => {
+    if (!input.value.trim()) {
+      input.value = '';
+      input.classList.remove('invalid');
+      updateResultsPanel();
+      return;
+    }
+    const normalized = normalizeHex(input.value);
+    if (normalized) {
+      input.value = normalized;
+      input.classList.remove('invalid');
+    } else {
+      input.classList.add('invalid');
+      setHelp('Enter a valid hex (e.g., #1A2B3C).');
+    }
+    renderGradientPreview();
+    updateResultsPanel();
+  });
+
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyFill();
+    }
+  });
+
+  pickerButton.addEventListener('click', () => pickColorForRow(row));
+
+  removeButton.addEventListener('click', () => {
+    removeStopRow(row);
+  });
+
+  fallbackInput.addEventListener('input', () => {
+    if (!fallbackInput.value) return;
+    input.value = normalizeHex(fallbackInput.value) ?? fallbackInput.value.toUpperCase();
+    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new Event('blur'));
+  });
+
+  return row;
+}
+
+function addStop(initialHex = '') {
+  if (stopRows.length >= MAX_STOPS) {
+    setHelp(`You can add up to ${MAX_STOPS} color stops.`);
+    shakeElement(addStopButton);
+    return null;
+  }
+  const row = createStopRow(initialHex);
+  stopRows.push(row);
+  stopsContainer.appendChild(row.element);
+  refreshStopLabels();
+  updateRemoveButtons();
+  updateAddButtonState();
+  renderGradientPreview();
+  updateResultsPanel();
+  return row;
+}
+
+function removeStopRow(row) {
+  if (stopRows.length <= MIN_STOPS) {
+    return;
+  }
+  const index = stopRows.indexOf(row);
+  if (index !== -1) {
+    stopRows.splice(index, 1);
+    row.element.remove();
+    refreshStopLabels();
+    updateRemoveButtons();
+    updateAddButtonState();
+    renderGradientPreview();
+    updateResultsPanel();
+  }
+}
+
+function refreshStopLabels() {
+  stopRows.forEach((row, index) => {
+    const stopNumber = index + 1;
+    row.label.textContent = `Stop ${stopNumber}`;
+    row.pickerButton.setAttribute('aria-label', `Pick color for stop ${stopNumber}`);
+    row.removeButton.setAttribute('aria-label', `Remove color stop ${stopNumber}`);
+  });
+}
+
+function updateRemoveButtons() {
+  const shouldHide = stopRows.length <= MIN_STOPS;
+  stopRows.forEach((row) => {
+    row.removeButton.classList.toggle('hidden', shouldHide);
+  });
+}
+
+function updateAddButtonState() {
+  const atLimit = stopRows.length >= MAX_STOPS;
+  addStopButton.disabled = atLimit;
+  if (!atLimit && helpText.textContent === `You can add up to ${MAX_STOPS} color stops.`) {
+    clearHelp();
+  }
+}
 
 function normalizeHex(value) {
   if (!value) return null;
@@ -172,11 +322,252 @@ function normalizeHex(value) {
   if (raw.length === 3 && /^[0-9a-fA-F]{3}$/.test(raw)) {
     raw = raw.split('').map((char) => char + char).join('');
   } else if (raw.length === 6 && /^[0-9a-fA-F]{6}$/.test(raw)) {
-    // valid 6-digit hex
+    // valid six digit hex
   } else {
     return null;
   }
   return `#${raw.toUpperCase()}`;
+}
+
+function collectValidStops() {
+  return stopRows
+    .map((row) => ({ row, hex: normalizeHex(row.input.value) }))
+    .filter((item) => item.hex);
+}
+
+function renderGradientPreview() {
+  const validStops = collectValidStops();
+  if (validStops.length === 0) {
+    previewBar.style.background = 'rgba(15, 23, 42, 0.08)';
+    return;
+  }
+  if (validStops.length === 1) {
+    previewBar.style.background = validStops[0].hex;
+    return;
+  }
+  const gradient = `linear-gradient(90deg, ${validStops.map((item) => item.hex).join(', ')})`;
+  previewBar.style.background = gradient;
+}
+
+function setHelp(message) {
+  helpText.textContent = message || '';
+}
+
+function clearHelp() {
+  setHelp('');
+}
+
+function applyFill() {
+  clearHelp();
+  const invalidRows = stopRows.filter((row) => {
+    const value = row.input.value.trim();
+    return value && !normalizeHex(value);
+  });
+
+  if (invalidRows.length > 0) {
+    invalidRows.forEach((row) => {
+      row.input.classList.add('invalid');
+      shakeElement(row.element.querySelector('.stop-input-group'));
+    });
+    setHelp('Enter a valid hex (e.g., #1A2B3C).');
+    return;
+  }
+
+  const validStops = collectValidStops();
+  if (validStops.length === 0) {
+    setHelp('Enter at least one valid color to continue.');
+    shakeElement(stopsContainer);
+    return;
+  }
+
+  currentFillStops = validStops.map((item) => item.hex);
+
+  if (currentFillStops.length === 1) {
+    currentFillType = 'solid';
+    enterFillMode(currentFillStops[0], currentFillStops[0]);
+    renderSingleColorResults(currentFillStops[0]);
+  } else {
+    currentFillType = 'gradient';
+    const gradient = `linear-gradient(90deg, ${currentFillStops.join(', ')})`;
+    enterFillMode(gradient);
+    renderGradientResults(currentFillStops);
+  }
+}
+
+function enterFillMode(background, representativeColor = null) {
+  document.documentElement.style.setProperty('--fill-background', background);
+  document.body.classList.add('fill-mode');
+  backButton.tabIndex = 0;
+  backButton.setAttribute('aria-hidden', 'false');
+  backButton.focus();
+  const colorForContrast = representativeColor || midpointColor(currentFillStops[0], currentFillStops[currentFillStops.length - 1]);
+  updateBackButtonContrast(colorForContrast);
+}
+
+function exitFillMode() {
+  document.body.classList.remove('fill-mode');
+  document.documentElement.style.setProperty('--fill-background', 'transparent');
+  backButton.tabIndex = -1;
+  backButton.setAttribute('aria-hidden', 'true');
+  backButton.style.color = '';
+  currentFillType = 'none';
+  currentFillStops = [];
+  if (stopRows[0]) {
+    stopRows[0].input.focus();
+  }
+}
+
+function updateBackButtonContrast(referenceHex) {
+  const normalized = normalizeHex(referenceHex);
+  if (!normalized) {
+    backButton.style.color = '#0f172a';
+    return;
+  }
+  const backgroundRgb = hexToRgb(normalized);
+  const whiteContrast = contrastRatio(backgroundRgb, { r: 255, g: 255, b: 255 });
+  const blackContrast = contrastRatio(backgroundRgb, { r: 0, g: 0, b: 0 });
+  backButton.style.color = whiteContrast >= blackContrast ? '#ffffff' : '#0f172a';
+}
+
+function pickColorForRow(row) {
+  if (window.EyeDropper) {
+    const eyeDropper = new EyeDropper();
+    eyeDropper
+      .open()
+      .then((result) => {
+        if (result && result.sRGBHex) {
+          row.input.value = normalizeHex(result.sRGBHex) ?? result.sRGBHex.toUpperCase();
+          row.input.dispatchEvent(new Event('input'));
+          row.input.dispatchEvent(new Event('blur'));
+        }
+      })
+      .catch((error) => {
+        if (error && error.name === 'AbortError') return;
+        openFallbackPicker(row);
+      });
+  } else {
+    openFallbackPicker(row);
+  }
+}
+
+function openFallbackPicker(row) {
+  row.fallbackInput.click();
+}
+
+function renderSingleColorResults(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return;
+  const hsl = rgbToHsl(rgb);
+  const nearest = nearestNamedColor(hex);
+  const mix = rgbMixPercentages(rgb);
+  resultsContainer.innerHTML = `
+    <div class="results-grid">
+      <article class="result-card">
+        <h3>Hex</h3>
+        <div class="swatch-wrap">
+          <div class="swatch" style="background:${hex}"></div>
+          <p>${hex}</p>
+        </div>
+      </article>
+      <article class="result-card">
+        <h3>RGB</h3>
+        <p>${rgb.r}, ${rgb.g}, ${rgb.b}</p>
+        <p class="mix-line">${mix}</p>
+      </article>
+      <article class="result-card">
+        <h3>HSL</h3>
+        <p>${formatHsl(hsl)}</p>
+        <p class="mix-line">Nearest: ${nearest.name}</p>
+      </article>
+      <article class="result-card">
+        <h3>Contrast</h3>
+        <div class="contrast-row">
+          ${renderContrastSample('White', '#FFFFFF', hex)}
+          ${renderContrastSample('Black', '#000000', hex)}
+        </div>
+      </article>
+    </div>
+  `;
+  resultsContainer.classList.add('visible');
+}
+
+function renderGradientResults(stops) {
+  const cards = stops
+    .map((hex, index) => {
+      const rgb = hexToRgb(hex);
+      if (!rgb) {
+        return '';
+      }
+      const nearest = nearestNamedColor(hex);
+      return `
+        <article class="stop-summary-card">
+          <div class="swatch" style="background:${hex}"></div>
+          <strong>Stop ${index + 1}</strong>
+          <span>HEX ${hex}</span>
+          <span>RGB ${rgb.r}, ${rgb.g}, ${rgb.b}</span>
+          <span>Nearest: ${nearest.name}</span>
+        </article>
+      `;
+    })
+    .join('');
+  resultsContainer.innerHTML = `<div class="stop-summary">${cards}</div>`;
+  resultsContainer.classList.add('visible');
+}
+
+function updateResultsPanel() {
+  const validStops = collectValidStops();
+  if (validStops.length === 0) {
+    resultsContainer.classList.remove('visible');
+    resultsContainer.innerHTML = '';
+    return;
+  }
+  if (validStops.length === 1) {
+    renderSingleColorResults(validStops[0].hex);
+  } else {
+    renderGradientResults(validStops.map((item) => item.hex));
+  }
+}
+
+function renderContrastSample(label, foregroundHex, backgroundHex) {
+  const foreground = hexToRgb(foregroundHex);
+  const background = hexToRgb(backgroundHex);
+  if (!foreground || !background) {
+    return '';
+  }
+  const ratio = contrastRatio(foreground, background);
+  const aa = ratio >= 4.5 ? 'AA pass' : 'AA fail';
+  const aaa = ratio >= 7 ? 'AAA pass' : 'AAA fail';
+  return `
+    <div class="contrast-sample" style="color:${foregroundHex}; background:${backgroundHex};">
+      <span>${label} text</span>
+      <span>${ratio.toFixed(2)}:1</span>
+      <span class="badge">${aa}</span>
+      <span class="badge">${aaa}</span>
+    </div>
+  `;
+}
+
+function rgbMixPercentages({ r, g, b }) {
+  const total = r + g + b;
+  if (total === 0) {
+    return 'R 0% · G 0% · B 0%';
+  }
+  const raw = {
+    r: (r / total) * 100,
+    g: (g / total) * 100,
+    b: (b / total) * 100
+  };
+  const rounded = {
+    r: Math.round(raw.r),
+    g: Math.round(raw.g),
+    b: Math.round(raw.b)
+  };
+  const diff = 100 - (rounded.r + rounded.g + rounded.b);
+  if (diff !== 0) {
+    const largest = Object.entries(raw).sort(([, valueA], [, valueB]) => valueB - valueA)[0][0];
+    rounded[largest] += diff;
+  }
+  return `R ${rounded.r}% · G ${rounded.g}% · B ${rounded.b}%`;
 }
 
 function hexToRgb(hex) {
@@ -190,11 +581,6 @@ function hexToRgb(hex) {
   };
 }
 
-function rgbToHex({ r, g, b }) {
-  const toHex = (component) => component.toString(16).padStart(2, '0');
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
-}
-
 function rgbToHsl({ r, g, b }) {
   const rNorm = r / 255;
   const gNorm = g / 255;
@@ -206,18 +592,20 @@ function rgbToHsl({ r, g, b }) {
   const l = (max + min) / 2;
 
   if (max !== min) {
-    const delta = max - min;
-    s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
-
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
     switch (max) {
       case rNorm:
-        h = (gNorm - bNorm) / delta + (gNorm < bNorm ? 6 : 0);
+        h = (gNorm - bNorm) / d + (gNorm < bNorm ? 6 : 0);
         break;
       case gNorm:
-        h = (bNorm - rNorm) / delta + 2;
+        h = (bNorm - rNorm) / d + 2;
+        break;
+      case bNorm:
+        h = (rNorm - gNorm) / d + 4;
         break;
       default:
-        h = (rNorm - gNorm) / delta + 4;
+        break;
     }
     h /= 6;
   }
@@ -229,271 +617,134 @@ function rgbToHsl({ r, g, b }) {
   };
 }
 
-function srgbChannelToLinear(channel) {
-  const c = channel / 255;
-  return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+function formatHsl({ h, s, l }) {
+  return `HSL(${h}°, ${s}%, ${l}%)`;
+}
+
+function srgbComponentToLinear(component) {
+  const normalized = component / 255;
+  if (normalized <= 0.04045) {
+    return normalized / 12.92;
+  }
+  return Math.pow((normalized + 0.055) / 1.055, 2.4);
+}
+
+function linearToSrgb(value) {
+  if (value <= 0.0031308) {
+    return value * 12.92;
+  }
+  return 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
 }
 
 function relativeLuminance({ r, g, b }) {
-  const rLin = srgbChannelToLinear(r);
-  const gLin = srgbChannelToLinear(g);
-  const bLin = srgbChannelToLinear(b);
+  const rLin = srgbComponentToLinear(r);
+  const gLin = srgbComponentToLinear(g);
+  const bLin = srgbComponentToLinear(b);
   return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin;
 }
 
-function contrastRatio(colorA, colorB) {
-  const lumA = relativeLuminance(colorA);
-  const lumB = relativeLuminance(colorB);
-  const lighter = Math.max(lumA, lumB);
-  const darker = Math.min(lumA, lumB);
-  return (lighter + 0.05) / (darker + 0.05);
+function contrastRatio(rgb1, rgb2) {
+  const lum1 = relativeLuminance(rgb1) + 0.05;
+  const lum2 = relativeLuminance(rgb2) + 0.05;
+  return lum1 > lum2 ? lum1 / lum2 : lum2 / lum1;
 }
 
-function findNearestColor(rgb) {
-  let nearest = namedColors[0];
-  let minDistance = Number.POSITIVE_INFINITY;
-  const target = [
-    srgbChannelToLinear(rgb.r),
-    srgbChannelToLinear(rgb.g),
-    srgbChannelToLinear(rgb.b)
-  ];
-
-  for (const color of namedColors) {
-    const comparisonRgb = hexToRgb(color.hex);
-    if (!comparisonRgb) continue;
-    const candidate = [
-      srgbChannelToLinear(comparisonRgb.r),
-      srgbChannelToLinear(comparisonRgb.g),
-      srgbChannelToLinear(comparisonRgb.b)
-    ];
-    const distance = Math.sqrt(
-      Math.pow(candidate[0] - target[0], 2) +
-        Math.pow(candidate[1] - target[1], 2) +
-        Math.pow(candidate[2] - target[2], 2)
-    );
-    if (distance < minDistance) {
-      minDistance = distance;
-      nearest = color;
-    }
-  }
-
-  return nearest;
-}
-
-function computeRgbMix({ r, g, b }) {
-  const total = r + g + b;
-  if (total === 0) {
-    return [0, 0, 0];
-  }
-
-  const raw = [r, g, b].map((component) => (component / total) * 100);
-  const rounded = raw.map((value) => Math.round(value));
-  const correction = 100 - (rounded[0] + rounded[1] + rounded[2]);
-  if (correction !== 0) {
-    const maxIndex = rounded.indexOf(Math.max(...rounded));
-    rounded[maxIndex] += correction;
-  }
-  return rounded;
-}
-
-function setHelpMessage(message = '') {
-  helpText.textContent = message;
-}
-
-function triggerInvalidFeedback() {
-  setHelpMessage('Enter a valid hex (e.g., #1A2B3C)');
-  hexInput.setAttribute('aria-invalid', 'true');
-  hexInput.classList.add('shake');
-  setTimeout(() => hexInput.classList.remove('shake'), 320);
-}
-
-function clearInvalidFeedback() {
-  if (helpText.textContent) {
-    setHelpMessage('');
-  }
-  hexInput.removeAttribute('aria-invalid');
-}
-
-function formatHsl({ h, s, l }) {
-  return `${h}\u00B0 · ${s}% · ${l}%`;
-}
-
-function buildContrastSample(label, textColor, ratio, aaPass, aaaPass) {
-  const badges = [
-    `<span class="badge" data-status="${aaPass ? 'pass' : 'fail'}">AA ${aaPass ? 'pass' : 'fail'}</span>`,
-    `<span class="badge" data-status="${aaaPass ? 'pass' : 'fail'}">AAA ${aaaPass ? 'pass' : 'fail'}</span>`
-  ].join('');
-  return `
-    <div class="contrast-sample" style="background:${currentColorHex};color:${textColor};">
-      <span class="sample-text">${label}</span>
-      <span class="value">${ratio.toFixed(2)} : 1</span>
-      <div class="badge-row">${badges}</div>
-    </div>
-  `;
-}
-
-function renderResults(hex) {
+function nearestNamedColor(hex) {
   const rgb = hexToRgb(hex);
-  if (!rgb) return;
-  currentColorHex = normalizeHex(hex);
-  const hsl = rgbToHsl(rgb);
-  const nearest = findNearestColor(rgb);
-  const mix = computeRgbMix(rgb);
-
-  const whiteContrast = contrastRatio(rgb, { r: 255, g: 255, b: 255 });
-  const blackContrast = contrastRatio(rgb, { r: 0, g: 0, b: 0 });
-
-  const whiteSample = buildContrastSample(
-    'White text',
-    '#FFFFFF',
-    whiteContrast,
-    whiteContrast >= 4.5,
-    whiteContrast >= 7
-  );
-  const blackSample = buildContrastSample(
-    'Black text',
-    '#111827',
-    blackContrast,
-    blackContrast >= 4.5,
-    blackContrast >= 7
-  );
-
-  resultsContainer.innerHTML = `
-    <div class="result-grid">
-      <div class="result-card">
-        <span class="label">Hex</span>
-        <div class="color-summary">
-          <span class="swatch" style="background:${currentColorHex}"></span>
-          <span class="value">${currentColorHex}</span>
-        </div>
-      </div>
-      <div class="result-card">
-        <span class="label">RGB</span>
-        <span class="value">${rgb.r}, ${rgb.g}, ${rgb.b}</span>
-      </div>
-      <div class="result-card">
-        <span class="label">HSL</span>
-        <span class="value">${formatHsl(hsl)}</span>
-      </div>
-      <div class="result-card">
-        <span class="label">Nearest CSS name</span>
-        <span class="value">${nearest.name}</span>
-      </div>
-      <div class="result-card">
-        <span class="label">RGB Mix</span>
-        <span class="value">R ${mix[0]}% · G ${mix[1]}% · B ${mix[2]}%</span>
-      </div>
-      <div class="result-card contrast-card">
-        <span class="label">Contrast checks</span>
-        <div class="contrast-row">
-          ${whiteSample}
-          ${blackSample}
-        </div>
-      </div>
-    </div>
-  `;
-  resultsContainer.classList.add('visible');
-}
-
-function enterFillMode(hex) {
-  const normalized = normalizeHex(hex);
-  if (!normalized) return;
-  const rgb = hexToRgb(normalized);
-  const contrastWhite = contrastRatio(rgb, { r: 255, g: 255, b: 255 });
-  const contrastBlack = contrastRatio(rgb, { r: 0, g: 0, b: 0 });
-  const textColor = contrastWhite >= contrastBlack ? '#FFFFFF' : '#0F172A';
-  const buttonBackground = contrastWhite >= contrastBlack ? 'rgba(15, 23, 42, 0.32)' : 'rgba(255, 255, 255, 0.32)';
-
-  body.style.setProperty('--fill-color', normalized);
-  body.classList.add('fill-mode');
-  backButton.style.color = textColor;
-  backButton.style.background = buttonBackground;
-  backButton.style.borderColor = textColor === '#FFFFFF' ? 'rgba(255, 255, 255, 0.65)' : 'rgba(15, 23, 42, 0.32)';
-  backButton.tabIndex = 0;
-  backButton.removeAttribute('aria-hidden');
-}
-
-function exitFillMode() {
-  body.classList.remove('fill-mode');
-  backButton.style.color = '';
-  backButton.style.background = '';
-  backButton.style.borderColor = '';
-  backButton.tabIndex = -1;
-  backButton.setAttribute('aria-hidden', 'true');
-  body.style.removeProperty('--fill-color');
-  hexInput.focus({ preventScroll: true });
-}
-
-async function handlePicker() {
-  if ('EyeDropper' in window) {
-    try {
-      const eyeDropper = new window.EyeDropper();
-      const result = await eyeDropper.open();
-      const normalized = normalizeHex(result.sRGBHex);
-      if (normalized) {
-        hexInput.value = normalized;
-        clearInvalidFeedback();
-        renderResults(normalized);
-      }
-    } catch (error) {
-      if (error && error.name !== 'AbortError') {
-        console.error('EyeDropper error:', error);
-      }
+  if (!rgb) {
+    return { name: 'Unknown', hex };
+  }
+  const target = [srgbComponentToLinear(rgb.r), srgbComponentToLinear(rgb.g), srgbComponentToLinear(rgb.b)];
+  let best = { name: 'Unknown', hex: '#000000' };
+  let bestDistance = Number.POSITIVE_INFINITY;
+  namedColors.forEach((color) => {
+    const colorRgb = hexToRgb(color.hex);
+    const linear = [srgbComponentToLinear(colorRgb.r), srgbComponentToLinear(colorRgb.g), srgbComponentToLinear(colorRgb.b)];
+    const distance = Math.sqrt(
+      Math.pow(target[0] - linear[0], 2) +
+      Math.pow(target[1] - linear[1], 2) +
+      Math.pow(target[2] - linear[2], 2)
+    );
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = color;
     }
-  } else {
-    fallbackColorInput.click();
-  }
+  });
+  return best;
 }
 
-function handleFallbackChange(event) {
-  const value = event.target.value;
-  const normalized = normalizeHex(value);
-  if (normalized) {
-    hexInput.value = normalized;
-    clearInvalidFeedback();
-    renderResults(normalized);
+function midpointColor(hexA, hexB) {
+  const rgbA = hexToRgb(hexA);
+  const rgbB = hexToRgb(hexB);
+  if (!rgbA || !rgbB) {
+    return hexA || hexB || '#FFFFFF';
   }
+  const aLinear = [srgbComponentToLinear(rgbA.r), srgbComponentToLinear(rgbA.g), srgbComponentToLinear(rgbA.b)];
+  const bLinear = [srgbComponentToLinear(rgbB.r), srgbComponentToLinear(rgbB.g), srgbComponentToLinear(rgbB.b)];
+  const midLinear = aLinear.map((value, index) => (value + bLinear[index]) / 2);
+  const toHex = (value) => {
+    const srgb = Math.min(1, Math.max(0, linearToSrgb(value)));
+    return Math.round(srgb * 255);
+  };
+  const midRgb = {
+    r: toHex(midLinear[0]),
+    g: toHex(midLinear[1]),
+    b: toHex(midLinear[2])
+  };
+  return rgbToHex(midRgb);
 }
 
-function handleFormSubmit(event) {
+function rgbToHex({ r, g, b }) {
+  const toHex = (component) => component.toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
+function shakeElement(element) {
+  if (!element) return;
+  element.classList.remove('shake');
+  void element.offsetWidth;
+  element.classList.add('shake');
+  setTimeout(() => {
+    element.classList.remove('shake');
+  }, 360);
+}
+
+form.addEventListener('submit', (event) => {
   event.preventDefault();
-  const normalized = normalizeHex(hexInput.value);
-  if (!normalized) {
-    triggerInvalidFeedback();
-    return;
-  }
-  clearInvalidFeedback();
-  hexInput.value = normalized;
-  enterFillMode(normalized);
-}
+  applyFill();
+});
 
-pickerButton.addEventListener('click', handlePicker);
-form.addEventListener('submit', handleFormSubmit);
-fallbackColorInput.addEventListener('change', handleFallbackChange);
-backButton.addEventListener('click', exitFillMode);
-
-goButton.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    form.requestSubmit();
+addStopButton.addEventListener('click', () => {
+  const row = addStop('');
+  if (row) {
+    row.input.focus();
   }
 });
 
-hexInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') {
-    event.preventDefault();
-    form.requestSubmit();
-  }
+backButton.addEventListener('click', () => {
+  exitFillMode();
 });
 
-hexInput.addEventListener('input', () => {
-  if (helpText.textContent || hexInput.getAttribute('aria-invalid')) {
-    clearInvalidFeedback();
+backButton.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    exitFillMode();
   }
 });
 
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && body.classList.contains('fill-mode')) {
+  if (event.key === 'Escape' && document.body.classList.contains('fill-mode')) {
     exitFillMode();
   }
 });
+
+addStop('#0099FF');
+addStop('#FF6A00');
+refreshStopLabels();
+updateRemoveButtons();
+updateAddButtonState();
+renderGradientPreview();
+updateResultsPanel();
+if (stopRows[0]) {
+  stopRows[0].input.focus();
+}
